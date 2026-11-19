@@ -27,7 +27,6 @@ if api_key:
     temp_client = Groq(api_key=api_key)
     models_response = temp_client.models.list()
     raw_ids = sorted([m.id for m in models_response.data])
-    # Singkirkan model guard / audio / moderasi agar tidak salah pilih untuk menulis cerita
     filtered_ids = [
         mid
         for mid in raw_ids
@@ -38,6 +37,7 @@ if api_key:
                 "whisper",
                 "safeguard",
                 "moderation",
+                "orpheus",
                 "distil",
             ]
         )
@@ -49,10 +49,15 @@ if api_key:
 with st.form("form_cerpen"):
   if available_models:
     default_idx = 0
-    for idx, m_id in enumerate(available_models):
-      if "70b" in m_id.lower() or "llama-3.3" in m_id.lower():
-        default_idx = idx
+    for keyword in ["120b", "qwen", "20b", "gpt-oss"]:
+      matched = next(
+          (i for i, m_id in enumerate(available_models) if keyword in m_id.lower()),
+          None,
+      )
+      if matched is not None:
+        default_idx = matched
         break
+
     selected_model = st.selectbox(
         "Pilih Model Groq Aktif:",
         options=available_models,
@@ -138,11 +143,14 @@ Instruksi tambahan:
             model=selected_model.strip(),
             temperature=0.55,
             max_tokens=2048,
+            frequency_penalty=0.5,
         )
 
         hasil_cerpen = chat_completion.choices[0].message.content
 
-        st.success(f"Cerpen selesai ditulis menggunakan model `{selected_model}`!")
+        st.success(
+            f"Cerpen selesai ditulis menggunakan model `{selected_model}`!"
+        )
         st.markdown("---")
         st.markdown(hasil_cerpen)
         st.markdown("---")
