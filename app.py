@@ -8,7 +8,6 @@ st.set_page_config(
 st.title("🖋️ Mesin Cerpen Otomatis")
 st.write("Aplikasi ringkas pembuat cerpen utuh berbasis Groq.")
 
-# Ambil API key otomatis dari Streamlit Secrets jika sudah diatur
 default_api_key = ""
 try:
   if "GROQ_API_KEY" in st.secrets:
@@ -20,25 +19,44 @@ api_key = st.text_input(
     "Groq API Key (otomatis terisi jika sudah diset di Secrets):",
     value=default_api_key,
     type="password",
-    help="Dapatkan gratis di console.groq.com",
 )
 
-# Ambil daftar model aktif secara otomatis jika API key tersedia
 available_models = []
 if api_key:
   try:
     temp_client = Groq(api_key=api_key)
     models_response = temp_client.models.list()
-    available_models = sorted([m.id for m in models_response.data])
+    raw_ids = sorted([m.id for m in models_response.data])
+    # Singkirkan model guard / audio / moderasi agar tidak salah pilih untuk menulis cerita
+    filtered_ids = [
+        mid
+        for mid in raw_ids
+        if not any(
+            bad in mid.lower()
+            for bad in [
+                "guard",
+                "whisper",
+                "safeguard",
+                "moderation",
+                "distil",
+            ]
+        )
+    ]
+    available_models = filtered_ids if filtered_ids else raw_ids
   except Exception as e:
     st.warning(f"Belum bisa memuat daftar model otomatis: {e}")
 
 with st.form("form_cerpen"):
   if available_models:
+    default_idx = 0
+    for idx, m_id in enumerate(available_models):
+      if "70b" in m_id.lower() or "llama-3.3" in m_id.lower():
+        default_idx = idx
+        break
     selected_model = st.selectbox(
         "Pilih Model Groq Aktif:",
         options=available_models,
-        index=0,
+        index=default_idx,
     )
   else:
     selected_model = st.text_input(
@@ -65,12 +83,14 @@ with st.form("form_cerpen"):
       "Aturan Gaya Bahasa (System Prompt):",
       value=(
           "Bertindaklah sebagai Alia Katarina. Tulis cerpen bahasa Indonesia"
-          " yang tajam, dingin, dan tidak bertele-tele. Dilarang menceramahi"
-          " pembaca, dilarang menggunakan klise AI, dan dilarang keras"
-          " menggunakan tanda baca em-dash (—). Akhiri cerita tanpa penyelesaian"
-          " klise."
+          " yang baku, tajam, dingin, dan tidak bertele-tele. Gunakan nama"
+          " tokoh sesuai premis secara konsisten dan jangan mengarang nama"
+          " baru yang tidak diminta. Dilarang menceramahi pembaca, dilarang"
+          " menggunakan klise AI, dan dilarang keras menggunakan tanda baca"
+          " em-dash (—). Akhiri cerita tanpa penyelesaian klise dan jangan"
+          " mengulang kalimat yang sama."
       ),
-      height=120,
+      height=130,
   )
 
   premis = st.text_area(
@@ -99,14 +119,15 @@ if submit_btn:
         client = Groq(api_key=api_key)
 
         prompt_user = f"""
-Tuliskan sebuah cerpen utuh (sekitar 1.200 - 2.000 kata) berdasarkan detail berikut:
+Tuliskan sebuah cerpen bahasa Indonesia yang rapi, wajar, dan utuh (sekitar 700 - 1.100 kata) berdasarkan detail berikut:
 - Latar: {latar}
 - Nuansa: {nuansa}
 - Premis: {premis}
 
 Instruksi tambahan:
-- Buat judul cerpen yang kuat di baris paling atas.
-- Langsung masuk ke adegan pembuka yang memikat tanpa kalimat pengantar atau penutup dari AI.
+- Buat judul cerpen yang tajam di baris paling atas.
+- Gunakan nama tokoh yang konsisten sesuai premis (Almira dan Banyu).
+- Langsung masuk ke adegan pembuka tanpa kalimat pengantar atau penutup dari AI, dan pastikan setiap kalimat memiliki struktur bahasa Indonesia yang jelas.
 """
 
         chat_completion = client.chat.completions.create(
@@ -115,8 +136,8 @@ Instruksi tambahan:
                 {"role": "user", "content": prompt_user},
             ],
             model=selected_model.strip(),
-            temperature=0.75,
-            max_tokens=4096,
+            temperature=0.55,
+            max_tokens=2048,
         )
 
         hasil_cerpen = chat_completion.choices[0].message.content
