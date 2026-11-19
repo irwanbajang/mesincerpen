@@ -6,16 +6,22 @@ st.set_page_config(
 )
 
 st.title("🖋️ Mesin Cerpen Otomatis")
-st.write(
-    "Aplikasi ringkas pembuat cerpen utuh berbasis Groq (Llama 3.3 70B)."
-)
+st.write("Aplikasi ringkas pembuat cerpen utuh berbasis Groq.")
 
-# Menggunakan form agar tidak terjadi eksekusi berulang saat mengetik
 with st.form("form_cerpen"):
   api_key = st.text_input(
       "Masukkan Groq API Key:",
       type="password",
       help="Dapatkan gratis di console.groq.com",
+  )
+
+  model_name = st.text_input(
+      "ID Model Groq:",
+      value="llama-3.1-8b-instant",
+      help=(
+          "Cek daftar ID model aktif di menu Models pada console.groq.com jika"
+          " ingin mengganti"
+      ),
   )
 
   col1, col2 = st.columns(2)
@@ -41,7 +47,7 @@ with st.form("form_cerpen"):
           " menggunakan tanda baca em-dash (—). Akhiri cerita tanpa penyelesaian"
           " klise."
       ),
-      height=110,
+      height=120,
   )
 
   premis = st.text_area(
@@ -60,6 +66,8 @@ with st.form("form_cerpen"):
 if submit_btn:
   if not api_key:
     st.error("Masukkan Groq API Key terlebih dahulu.")
+  elif not model_name.strip():
+    st.error("Masukkan ID model Groq terlebih dahulu.")
   elif not premis.strip():
     st.error("Isi premis atau ide ceritanya terlebih dahulu.")
   else:
@@ -68,7 +76,7 @@ if submit_btn:
         client = Groq(api_key=api_key)
 
         prompt_user = f"""
-Tuliskan sebuah cerpen utuh (sekitar 1.000 - 1.500 kata) berdasarkan detail berikut:
+Tuliskan sebuah cerpen utuh (sekitar 1.200 - 2.000 kata) berdasarkan detail berikut:
 - Latar: {latar}
 - Nuansa: {nuansa}
 - Premis: {premis}
@@ -83,7 +91,7 @@ Instruksi tambahan:
                 {"role": "system", "content": gaya_bahasa},
                 {"role": "user", "content": prompt_user},
             ],
-            model="llama-3.3-70b-versatile",
+            model=model_name.strip(),
             temperature=0.75,
             max_tokens=4096,
         )
