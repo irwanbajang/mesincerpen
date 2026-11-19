@@ -8,21 +8,44 @@ st.set_page_config(
 st.title("🖋️ Mesin Cerpen Otomatis")
 st.write("Aplikasi ringkas pembuat cerpen utuh berbasis Groq.")
 
-with st.form("form_cerpen"):
-  api_key = st.text_input(
-      "Masukkan Groq API Key:",
-      type="password",
-      help="Dapatkan gratis di console.groq.com",
-  )
+# Ambil API key otomatis dari Streamlit Secrets jika sudah diatur
+default_api_key = ""
+try:
+  if "GROQ_API_KEY" in st.secrets:
+    default_api_key = st.secrets["GROQ_API_KEY"]
+except Exception:
+  pass
 
-  model_name = st.text_input(
-      "ID Model Groq:",
-      value="llama-3.1-8b-instant",
-      help=(
-          "Cek daftar ID model aktif di menu Models pada console.groq.com jika"
-          " ingin mengganti"
-      ),
-  )
+api_key = st.text_input(
+    "Groq API Key (otomatis terisi jika sudah diset di Secrets):",
+    value=default_api_key,
+    type="password",
+    help="Dapatkan gratis di console.groq.com",
+)
+
+# Ambil daftar model aktif secara otomatis jika API key tersedia
+available_models = []
+if api_key:
+  try:
+    temp_client = Groq(api_key=api_key)
+    models_response = temp_client.models.list()
+    available_models = sorted([m.id for m in models_response.data])
+  except Exception as e:
+    st.warning(f"Belum bisa memuat daftar model otomatis: {e}")
+
+with st.form("form_cerpen"):
+  if available_models:
+    selected_model = st.selectbox(
+        "Pilih Model Groq Aktif:",
+        options=available_models,
+        index=0,
+    )
+  else:
+    selected_model = st.text_input(
+        "ID Model Groq:",
+        value="",
+        help="Masukkan API Key di atas agar daftar model aktif muncul otomatis.",
+    )
 
   col1, col2 = st.columns(2)
   with col1:
@@ -66,8 +89,8 @@ with st.form("form_cerpen"):
 if submit_btn:
   if not api_key:
     st.error("Masukkan Groq API Key terlebih dahulu.")
-  elif not model_name.strip():
-    st.error("Masukkan ID model Groq terlebih dahulu.")
+  elif not selected_model.strip():
+    st.error("Pilih atau masukkan ID model Groq terlebih dahulu.")
   elif not premis.strip():
     st.error("Isi premis atau ide ceritanya terlebih dahulu.")
   else:
@@ -91,14 +114,14 @@ Instruksi tambahan:
                 {"role": "system", "content": gaya_bahasa},
                 {"role": "user", "content": prompt_user},
             ],
-            model=model_name.strip(),
+            model=selected_model.strip(),
             temperature=0.75,
             max_tokens=4096,
         )
 
         hasil_cerpen = chat_completion.choices[0].message.content
 
-        st.success("Cerpen selesai ditulis!")
+        st.success(f"Cerpen selesai ditulis menggunakan model `{selected_model}`!")
         st.markdown("---")
         st.markdown(hasil_cerpen)
         st.markdown("---")
